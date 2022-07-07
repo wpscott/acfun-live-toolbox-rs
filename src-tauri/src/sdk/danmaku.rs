@@ -9,7 +9,6 @@ use std::{
     },
     time::{SystemTime, UNIX_EPOCH},
 };
-use uuid::Uuid;
 
 use crate::{
     AppInfo::AppInfo,
@@ -33,7 +32,7 @@ use crate::{
     ZtLiveScStatusChanged::{zt_live_sc_status_changed::Type, ZtLiveScStatusChanged},
 };
 
-use super::{live::StartPushData, User};
+use super::{live::StartPushData, Token, User};
 
 #[derive(Debug, Default)]
 pub struct ClientRequest {
@@ -65,14 +64,14 @@ impl ClientRequest {
     pub fn new(
         userid: i64,
         service_token: String,
-        security_key: String,
+        security_key: &String,
         live_id: String,
         enter_room_attach: String,
         tickets: Vec<String>,
     ) -> ClientRequest {
         ClientRequest {
             userid,
-            service_token,
+            service_token: service_token.clone(),
             security_key: utils::convert_key(security_key),
             live_id,
             enter_room_attach,
@@ -342,73 +341,24 @@ impl ClientRequest {
     }
 }
 
-use hyper::{
-    body::{aggregate, Buf},
-    Client, Method, Request,
-};
-use hyper_tls::HttpsConnector;
-
-use serde_json;
-
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 
 use flate2::read::GzDecoder;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SLINK_HOST: &str = "slink.gifshow.com:14000";
 
-pub async fn start(
+pub async fn start<F: Fn(&str, Vec<u8>)>(
     user: &User,
+    token: &Token,
     push_data: StartPushData,
-    handler: fn(msgType: &str, payload: Vec<u8>),
+    handler: F,
 ) {
-    let did = Uuid::new_v4().hyphenated().to_string();
-    let acfun_cookie = format!(
-        "_did=acfun_live_toolbox_{}; acPasstoken={}; auth_key={};",
-        did, user.passtoken, user.userid
-    );
-
-    let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
-
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri("https://id.app.acfun.cn/rest/app/token/get")
-        .header(
-            hyper::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(hyper::header::COOKIE, acfun_cookie)
-        .header(
-            hyper::header::USER_AGENT,
-            format!("acfun_live_toolbox {}", VERSION),
-        )
-        .body(hyper::Body::from("sid=acfun.midground.api"))
-        .unwrap();
-
-    let res = client.request(req).await.unwrap();
-
-    let body = aggregate(res).await.unwrap();
-
-    let json: serde_json::Value = serde_json::from_reader(body.reader()).unwrap();
-
-    if json.get("result").unwrap().as_i64().unwrap() != 0 {
-        panic!("{}", json)
-    }
-
-    let service_token = json
-        .get("acfun.midground.api_st")
-        .unwrap()
-        .as_str()
-        .unwrap();
-    let security_key = json.get("ssecurity").unwrap().as_str().unwrap();
-
     let mut request = Arc::<ClientRequest>::new(ClientRequest::new(
         user.userid,
-        String::from(service_token),
-        String::from(security_key),
+        token.st.clone(),
+        &token.ssecurity,
         push_data.liveId,
         push_data.enterRoomAttach,
         push_data.availableTickets,

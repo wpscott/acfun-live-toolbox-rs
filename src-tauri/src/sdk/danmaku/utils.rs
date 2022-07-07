@@ -12,10 +12,8 @@ type Aes256CbcDec = cbc::Decryptor<Aes256>;
 
 const HEADER_OFFSET: usize = 12;
 
-pub fn convert_key(token: String) -> [u8; 32] {
-    let mut key = [0; 32];
-    base64::decode_config_slice(token, base64::STANDARD, &mut key).unwrap();
-    key
+pub fn convert_key(token: &String) -> [u8; 32] {
+    base64::decode(token).unwrap().try_into().unwrap()
 }
 
 fn encrypt(key: &[u8; 32], body: Vec<u8>) -> Vec<u8> {
@@ -49,8 +47,8 @@ pub fn encode(mut header: Vec<u8>, body: Vec<u8>, key: &[u8; 32]) -> Vec<u8> {
     buf.push(0xCD);
     buf.push(0x00);
     buf.push(0x01);
-    buf.extend_from_slice(&header_len.to_be_bytes());
-    buf.extend_from_slice(&payload_len.to_be_bytes());
+    buf.extend(&header_len.to_be_bytes());
+    buf.extend(&payload_len.to_be_bytes());
     buf.append(&mut header);
     buf.append(&mut encrypted);
 

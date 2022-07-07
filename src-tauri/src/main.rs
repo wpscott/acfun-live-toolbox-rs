@@ -59,6 +59,9 @@ fn main() {
             apply_acrylic(&win, Some((238, 238, 238, 125)))
                 .expect("Unsupported platform! 'apply_acrylic' is only supported on Windows");
 
+
+            
+            
             Ok(())
         })
         .run(context)

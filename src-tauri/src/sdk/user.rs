@@ -1,4 +1,5 @@
 use tauri::{State, Window};
+use uuid::Uuid;
 
 use std::{
     sync::Mutex,
@@ -7,14 +8,14 @@ use std::{
 
 use hyper::{
     body::{aggregate, Buf},
-    Client,
+    Client, Method, Request,
 };
 use hyper_tls::HttpsConnector;
 
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json;
 
-use super::{db, Payload, User};
+use super::{db, Token, User, VERSION};
 
 #[derive(Debug, Deserialize)]
 struct StartResult {
@@ -47,6 +48,12 @@ struct AcceptResult {
     ac_userimg: String,
     acPasstoken: String,
     error_msg: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+struct Payload {
+    caption: String,
+    message: Option<String>,
 }
 
 #[tauri::command]
@@ -141,6 +148,7 @@ pub async fn qr_login(window: Window, state: State<'_, Mutex<Option<User>>>) -> 
         username: confirm.ac_username,
         avatar: confirm.ac_userimg,
         passtoken: confirm.acPasstoken,
+        did: Uuid::new_v4().hyphenated().to_string()
     };
 
     db::save_user(&user).unwrap();
@@ -148,4 +156,36 @@ pub async fn qr_login(window: Window, state: State<'_, Mutex<Option<User>>>) -> 
     *state.lock().unwrap() = Some(user);
 
     Ok(())
+}
+
+pub async fn get_token(user: &User) -> Token {
+    let https = HttpsConnector::new();
+    let client = Client::builder().build::<_, hyper::Body>(https);
+
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("https://id.app.acfun.cn/rest/app/token/get")
+        .header(
+            hyper::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .header(hyper::header::COOKIE, user.acfun_cookie())
+        .header(
+            hyper::header::USER_AGENT,
+            format!("acfun_live_toolbox {}", VERSION),
+        )
+        .body(hyper::Body::from("sid=acfun.midground.api"))
+        .unwrap();
+
+    let res = client.request(req).await.unwrap();
+
+    let body = aggregate(res).await.unwrap();
+
+    let json: Token = serde_json::from_reader(body.reader()).unwrap();
+
+    if json.result != 0 {
+        panic!("{:?}", json)
+    }
+
+    json
 }
