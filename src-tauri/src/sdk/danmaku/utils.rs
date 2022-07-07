@@ -1,14 +1,8 @@
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use aes::Aes256;
-use protobuf::Message;
-use rand_chacha::{rand_core::SeedableRng, ChaChaRng};
+use super::super::prelude::*;
 
 use crate::DownstreamPayload::DownstreamPayload;
 use crate::PacketHeader::packet_header::EncryptionMode;
 use crate::PacketHeader::PacketHeader;
-
-type Aes256CbcEnc = cbc::Encryptor<Aes256>;
-type Aes256CbcDec = cbc::Decryptor<Aes256>;
 
 const HEADER_OFFSET: usize = 12;
 

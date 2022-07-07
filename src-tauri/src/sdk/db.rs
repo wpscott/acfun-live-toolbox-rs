@@ -1,6 +1,4 @@
-use rusqlite::{params, Connection, Result};
-
-use super::User;
+use super::prelude::*;
 
 fn open_db() -> Result<Connection> {
     let conn = Connection::open("acfun-live-toobox.db")?;

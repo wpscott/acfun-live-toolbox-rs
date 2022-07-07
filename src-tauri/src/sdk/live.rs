@@ -1,24 +1,4 @@
-use hyper::{
-    body::{aggregate, Buf},
-    Body, Client, Method, Request,
-};
-use hyper_tls::HttpsConnector;
-use std::{
-    collections::BTreeMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-use serde::Deserialize;
-use serde_json;
-
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-
-type HmacSha256 = Hmac<Sha256>;
-
-use rand::prelude::*;
-
-use super::{Token, User, VERSION};
+use super::prelude::*;
 
 #[derive(Debug, Deserialize)]
 pub struct Response<T> {
@@ -170,8 +150,7 @@ fn sign(url: &str, token: &String, extra: Option<BTreeMap<&str, &str>>) -> (Stri
     (query, base64::encode_config(sign, base64::URL_SAFE_NO_PAD))
 }
 
-
-pub async fn get_author_auth(user: &User, token: &Token) -> Auth {
+pub async fn get_author_auth(user: &User, token: &Token) -> Result<Auth, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -192,18 +171,16 @@ pub async fn get_author_auth(user: &User, token: &Token) -> Auth {
             hyper::header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
-        .body(Body::default())
-        .unwrap();
+        .body(Body::default())?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: Auth = serde_json::from_reader(body.reader()).unwrap();
+    let result: Auth = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }
-
 
 pub async fn get_stream_config(user: &User, token: &Token) -> StreamConfig {
     let https = HttpsConnector::new();
@@ -240,7 +217,6 @@ pub async fn get_stream_config(user: &User, token: &Token) -> StreamConfig {
     result
 }
 
-
 pub async fn get_stream_status(user: &User, token: &Token) -> StreamStatus {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -276,7 +252,6 @@ pub async fn get_stream_status(user: &User, token: &Token) -> StreamStatus {
     result
 }
 
-
 pub async fn start_push(user: &User, token: &Token) -> StartPush {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -296,10 +271,7 @@ pub async fn start_push(user: &User, token: &Token) -> StartPush {
             hyper::header::USER_AGENT,
             format!("acfun_live_toolbox {}", VERSION),
         )
-        .header(
-            hyper::header::CONTENT_TYPE,
-            "multipart/form-data",
-        )
+        .header(hyper::header::CONTENT_TYPE, "multipart/form-data")
         .body(Body::default())
         .unwrap();
 
@@ -311,7 +283,6 @@ pub async fn start_push(user: &User, token: &Token) -> StartPush {
 
     result
 }
-
 
 pub async fn stop_push(user: &User, token: &Token, live_id: &str) -> StopPush {
     let https = HttpsConnector::new();

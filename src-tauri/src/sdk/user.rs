@@ -1,21 +1,4 @@
-use tauri::{State, Window};
-use uuid::Uuid;
-
-use std::{
-    sync::Mutex,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-use hyper::{
-    body::{aggregate, Buf},
-    Client, Method, Request,
-};
-use hyper_tls::HttpsConnector;
-
-use serde::{Deserialize, Serialize};
-use serde_json;
-
-use super::{db, Token, User, VERSION};
+use super::prelude::*;
 
 #[derive(Debug, Deserialize)]
 struct StartResult {
@@ -57,7 +40,12 @@ struct Payload {
 }
 
 #[tauri::command]
-pub async fn qr_login(window: Window, state: State<'_, Mutex<Option<User>>>) -> Result<(), ()> {
+pub async fn qr_login(
+    window: Window,
+    user_state: State<'_, RwLock<Option<User>>>,
+    did: State<'_, Hyphenated>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+) -> Result<(), ()> {
     window
         .emit(
             "qr-login",
@@ -148,17 +136,18 @@ pub async fn qr_login(window: Window, state: State<'_, Mutex<Option<User>>>) -> 
         username: confirm.ac_username,
         avatar: confirm.ac_userimg,
         passtoken: confirm.acPasstoken,
-        did: Uuid::new_v4().hyphenated().to_string()
     };
 
     db::save_user(&user).unwrap();
 
-    *state.lock().unwrap() = Some(user);
+    *token_state.write().await = Some(get_token(&user, &did.to_string()).await);
+
+    *user_state.write().await = Some(user);
 
     Ok(())
 }
 
-pub async fn get_token(user: &User) -> Token {
+async fn get_token(user: &User, did: &String) -> Token {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -169,7 +158,7 @@ pub async fn get_token(user: &User) -> Token {
             hyper::header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
-        .header(hyper::header::COOKIE, user.acfun_cookie())
+        .header(hyper::header::COOKIE, user.acfun_cookie(did))
         .header(
             hyper::header::USER_AGENT,
             format!("acfun_live_toolbox {}", VERSION),

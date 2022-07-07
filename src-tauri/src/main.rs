@@ -3,9 +3,12 @@
     windows_subsystem = "windows"
 )]
 
-use std::sync::Mutex;
+// use std::{sync::{Arc, Mutex}, net::TcpStream};
+
+// use tokio::sync::RwLock;
 
 use tauri::Manager;
+use uuid::Uuid;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use window_shadows::set_shadow;
 #[cfg(target_os = "windows")]
@@ -13,14 +16,12 @@ use window_vibrancy::apply_acrylic;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
-use log::LevelFilter;
-use tauri_plugin_log::{LogTarget, LoggerBuilder, RotationStrategy};
-
 use acfun_live_toolbox::sdk;
+use acfun_live_toolbox::sdk::prelude::*;
 
 fn main() {
-    let conn = sdk::db::initialize().unwrap();
-    let result = sdk::db::load_user(conn);
+    let conn = db::initialize().unwrap();
+    let result = db::load_user(conn);
 
     let context = tauri::generate_context!();
     tauri::Builder::default()
@@ -32,9 +33,12 @@ fn main() {
                 .build(),
         )
         .manage(match result {
-            Ok(user) => Mutex::new(user),
-            Err(_) => Mutex::new(Option::<sdk::User>::None),
+            Ok(user) => RwLock::new(user),
+            Err(_) => RwLock::new(Option::<User>::None),
         })
+        .manage(Uuid::new_v4().hyphenated())
+        .manage(RwLock::new(Option::<Token>::None))
+        .manage(Mutex::<Option<Arc<TcpStream>>>::new(None))
         .menu(if cfg!(target_os = "macos") {
             tauri::Menu::os_default(&context.package_info().name)
         } else {
@@ -43,6 +47,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             sdk::is_login,
             sdk::get_user,
+            sdk::check_live_auth,
+            sdk::check_live_status,
+            sdk::get_stream_config,
+            sdk::start_push,
+            // sdk::stop_push,
             sdk::user::qr_login,
         ])
         .setup(|app| {
@@ -59,9 +68,6 @@ fn main() {
             apply_acrylic(&win, Some((238, 238, 238, 125)))
                 .expect("Unsupported platform! 'apply_acrylic' is only supported on Windows");
 
-
-            
-            
             Ok(())
         })
         .run(context)

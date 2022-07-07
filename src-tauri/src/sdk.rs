@@ -3,13 +3,11 @@ pub mod db;
 mod live;
 pub mod user;
 
-use tauri::State;
+pub mod prelude;
 
-use std::sync::Mutex;
+use prelude::*;
 
-use serde::{Deserialize, Serialize};
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct User {
@@ -17,7 +15,6 @@ pub struct User {
     pub username: String,
     pub avatar: String,
     pub passtoken: String,
-    pub did: String,
 }
 
 impl User {
@@ -28,10 +25,10 @@ impl User {
         )
     }
 
-    pub fn acfun_cookie(&self) -> String {
+    pub fn acfun_cookie(&self, did: &String) -> String {
         format!(
             "_did=acfun_live_toolbox_{}; acPasstoken={}; auth_key={}",
-            self.did, self.passtoken, self.userid
+            did, self.passtoken, self.userid
         )
     }
 }
@@ -51,64 +48,82 @@ pub struct Token {
 }
 
 #[tauri::command]
-pub fn is_login(state: State<Mutex<Option<User>>>) -> bool {
-    match *state.lock().unwrap() {
+pub async fn is_login(user_state: State<'_, RwLock<Option<User>>>) -> Result<bool, ()> {
+    Ok(match *user_state.read().await {
         Some(_) => true,
         None => false,
+    })
+}
+
+#[tauri::command]
+pub async fn get_user(user_state: State<'_, RwLock<Option<User>>>) -> Result<Option<User>, ()> {
+    Ok((*user_state.read().await).clone())
+}
+
+#[tauri::command]
+pub async fn check_live_auth(
+    user_state: State<'_, RwLock<Option<User>>>,
+    did: State<'_, Hyphenated>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+) -> Result<bool, ()> {
+    match &*user_state.read().await {
+        Some(user) => match &*token_state.read().await {
+            Some(token) => {
+                let auth = live::get_author_auth(user, token).await.unwrap();
+                if auth.result == 1 {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            None => Ok(false),
+        },
+        None => Ok(false),
     }
 }
 
 #[tauri::command]
-pub fn get_user(state: State<Mutex<Option<User>>>) -> Option<User> {
-    (*state.lock().unwrap()).clone()
-}
-
-#[tauri::command]
-pub async fn check_live_auth(state: State<'_, Mutex<Option<User>>>) -> bool {
-    match &*state.lock().unwrap() {
-        Some(user) => {
-            let token = user::get_token(user).await;
-            let auth = live::get_author_auth(&user, &token).await;
-            if auth.result == 1 {
-                true
-            } else {
-                false
+pub async fn check_live_status(
+    user_state: State<'_, RwLock<Option<User>>>,
+    did: State<'_, Hyphenated>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+) -> Result<Option<String>, ()> {
+    match &*user_state.read().await {
+        Some(user) => match &*token_state.read().await {
+            Some(token) => {
+                let status = live::get_stream_status(user, token).await;
+                if status.result == 1 {
+                    Ok(Some(status.data.liveId))
+                } else {
+                    Ok(None)
+                }
             }
-        }
-        None => false,
+            None => Ok(None),
+        },
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
-pub async fn check_live_status(state: State<'_, Mutex<Option<User>>>) -> Option<String> {
-    match &*state.lock().unwrap() {
-        Some(user) => {
-            let token = user::get_token(user).await;
-            let status = live::get_stream_status(&user, &token).await;
-            if status.result == 1 {
-                Some(status.data.liveId)
-            } else {
-                None
-            }
-        }
-        None => None,
-    }
-}
+pub async fn get_stream_config(
+    user_state: State<'_, RwLock<Option<User>>>,
+    did: State<'_, Hyphenated>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+) -> Result<Option<String>, ()> {
+    match &*user_state.read().await {
+        Some(user) => match &*token_state.read().await {
+            Some(token) => {
+                let config = live::get_stream_config(user, token).await;
 
-#[tauri::command]
-pub async fn get_stream_config(state: State<'_, Mutex<Option<User>>>) -> Option<String> {
-    match &*state.lock().unwrap() {
-        Some(user) => {
-            let token = user::get_token(&user).await;
-            let config = live::get_stream_config(user, &token).await;
-
-            if config.result == 1 {
-                Some(config.data.streamPushAddress[0].clone())
-            } else {
-                None
+                if config.result == 1 {
+                    Ok(Some(config.data.streamPushAddress[0].clone()))
+                } else {
+                    Ok(None)
+                }
             }
-        }
-        None => None,
+            None => Ok(None),
+        },
+        None => Ok(None),
     }
 }
 
@@ -122,29 +137,37 @@ struct Payload<T> {
 pub async fn start_push(
     app: tauri::AppHandle,
     window: tauri::Window,
-    state: State<'_, Mutex<Option<User>>>,
-) {
-    match &*state.lock().unwrap() {
-        Some(user) => {
-            let token = user::get_token(&user).await;
-            let push = live::start_push(user, &token).await;
+    user_state: State<'_, RwLock<Option<User>>>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+    tcp_state: State<'_, Mutex<Option<Arc<TcpStream>>>>,
+) -> Result<(), ()> {
+    match &*user_state.read().await {
+        Some(user) => match &*token_state.read().await {
+            Some(token) => {
+                let push = live::start_push(user, token).await;
 
-            if push.result == 1 {
-                danmaku::start(user, &token, push.data, |msg_type, payload| {
-                    // app.emit_all(
-                    //     "danmkaku",
-                    //     Payload {
-                    //         caption: "".to_string(),
-                    //         message: Some("".to_string()),
-                    //     },).unwrap());
-                    match msg_type {
-                        danmaku::r#enum::push_message::action_signal::COMMENT => {}
-                        _ => {}
-                    }
-                })
-                .await;
+                if push.result == 1 {
+                    let tcp = danmaku::start(user, token, push.data, |msg_type, payload| {
+                        // app.emit_all(
+                        //     "danmkaku",
+                        //     Payload {
+                        //         caption: "".to_string(),
+                        //         message: Some("".to_string()),
+                        //     },).unwrap());
+                        match msg_type {
+                            danmaku::r#enum::push_message::action_signal::COMMENT => {}
+                            _ => {}
+                        }
+                    })
+                    .await;
+
+                    *tcp_state.lock().unwrap() = Some(tcp);
+                }
             }
-        }
+            None => {}
+        },
         None => {}
     }
+
+    Ok(())
 }
