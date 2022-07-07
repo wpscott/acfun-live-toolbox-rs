@@ -115,7 +115,8 @@ fn generate_nonce() -> i64 {
 }
 
 fn sign(url: &str, token: &String, extra: Option<BTreeMap<&str, &str>>) -> (String, String) {
-    let mut hmac = HmacSha256::new_from_slice(&base64::decode(token).unwrap()).unwrap();
+    let mut hmac = HmacSha256::new_from_slice(&base64::decode(token).expect("Cannot decode token"))
+        .expect("Cannot create hmac");
 
     let mut _query = BTreeMap::from([
         ("appver", "1.9.0.200"),
@@ -182,7 +183,7 @@ pub async fn get_author_auth(user: &User, token: &Token) -> Result<Auth, HyperEr
     Ok(result)
 }
 
-pub async fn get_stream_config(user: &User, token: &Token) -> StreamConfig {
+pub async fn get_stream_config(user: &User, token: &Token) -> Result<StreamConfig, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -205,19 +206,18 @@ pub async fn get_stream_config(user: &User, token: &Token) -> StreamConfig {
             "application/x-www-form-urlencoded",
         )
         .header(hyper::header::REFERER, ACFUN_MEMBER)
-        .body(Body::from(form))
-        .unwrap();
+        .body(Body::from(form))?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: StreamConfig = serde_json::from_reader(body.reader()).unwrap();
+    let result: StreamConfig = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }
 
-pub async fn get_stream_status(user: &User, token: &Token) -> StreamStatus {
+pub async fn get_stream_status(user: &User, token: &Token) -> Result<StreamStatus, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -240,19 +240,18 @@ pub async fn get_stream_status(user: &User, token: &Token) -> StreamStatus {
             "application/x-www-form-urlencoded",
         )
         .header(hyper::header::REFERER, ACFUN_MEMBER)
-        .body(Body::from(form))
-        .unwrap();
+        .body(Body::from(form))?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: StreamStatus = serde_json::from_reader(body.reader()).unwrap();
+    let result: StreamStatus = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }
 
-pub async fn start_push(user: &User, token: &Token) -> StartPush {
+pub async fn start_push(user: &User, token: &Token) -> Result<StartPush, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -272,19 +271,18 @@ pub async fn start_push(user: &User, token: &Token) -> StartPush {
             format!("acfun_live_toolbox {}", VERSION),
         )
         .header(hyper::header::CONTENT_TYPE, "multipart/form-data")
-        .body(Body::default())
-        .unwrap();
+        .body(Body::default())?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: StartPush = serde_json::from_reader(body.reader()).unwrap();
+    let result: StartPush = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }
 
-pub async fn stop_push(user: &User, token: &Token, live_id: &str) -> StopPush {
+pub async fn stop_push(user: &User, token: &Token, live_id: &str) -> Result<StopPush, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -308,16 +306,15 @@ pub async fn stop_push(user: &User, token: &Token, live_id: &str) -> StopPush {
             format!("acfun_live_toolbox {}", VERSION),
         )
         .header(hyper::header::CONTENT_TYPE, "multipart/form-data")
-        .body(Body::default())
-        .unwrap();
+        .body(Body::default())?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: StopPush = serde_json::from_reader(body.reader()).unwrap();
+    let result: StopPush = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }
 
 type Gift = Response<GiftData>;
@@ -413,7 +410,7 @@ pub enum Cdn {
     BlobStore,
 }
 
-pub async fn get_gift_list(user: &User, token: &Token) -> Gift {
+pub async fn get_gift_list(user: &User, token: &Token) -> Result<Gift, HyperError> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
@@ -434,14 +431,13 @@ pub async fn get_gift_list(user: &User, token: &Token) -> Gift {
             hyper::header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
         )
-        .body(Body::default())
-        .unwrap();
+        .body(Body::default())?;
 
-    let res = client.request(req).await.unwrap();
+    let res = client.request(req).await?;
 
-    let body = aggregate(res).await.unwrap();
+    let body = aggregate(res).await?;
 
-    let result: Gift = serde_json::from_reader(body.reader()).unwrap();
+    let result: Gift = serde_json::from_reader(body.reader())?;
 
-    result
+    Ok(result)
 }

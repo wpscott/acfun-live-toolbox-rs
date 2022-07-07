@@ -69,7 +69,9 @@ pub async fn check_live_auth(
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
             Some(token) => {
-                let auth = live::get_author_auth(user, token).await.unwrap();
+                let auth = live::get_author_auth(user, token)
+                    .await
+                    .expect("get_author_auth error");
                 if auth.result == 1 {
                     Ok(true)
                 } else {
@@ -91,7 +93,9 @@ pub async fn check_live_status(
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
             Some(token) => {
-                let status = live::get_stream_status(user, token).await;
+                let status = live::get_stream_status(user, token)
+                    .await
+                    .expect("get_stream_status error");
                 if status.result == 1 {
                     Ok(Some(status.data.liveId))
                 } else {
@@ -113,7 +117,9 @@ pub async fn get_stream_config(
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
             Some(token) => {
-                let config = live::get_stream_config(user, token).await;
+                let config = live::get_stream_config(user, token)
+                    .await
+                    .expect("get_stream_config error");
 
                 if config.result == 1 {
                     Ok(Some(config.data.streamPushAddress[0].clone()))
@@ -135,8 +141,8 @@ struct Payload<T> {
 
 #[tauri::command]
 pub async fn start_push(
-    app: tauri::AppHandle,
-    window: tauri::Window,
+    app: AppHandle,
+    window: Window,
     user_state: State<'_, RwLock<Option<User>>>,
     token_state: State<'_, RwLock<Option<Token>>>,
     tcp_state: State<'_, Mutex<Option<Arc<TcpStream>>>>,
@@ -144,10 +150,12 @@ pub async fn start_push(
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
             Some(token) => {
-                let push = live::start_push(user, token).await;
+                let start = live::start_push(user, token)
+                    .await
+                    .expect("start_push error");
 
-                if push.result == 1 {
-                    let tcp = danmaku::start(user, token, push.data, |msg_type, payload| {
+                if start.result == 1 {
+                    let tcp = danmaku::start(user, token, start.data, |msg_type, payload| {
                         // app.emit_all(
                         //     "danmkaku",
                         //     Payload {
@@ -162,6 +170,34 @@ pub async fn start_push(
                     .await;
 
                     *tcp_state.lock().unwrap() = Some(tcp);
+                }
+            }
+            None => {}
+        },
+        None => {}
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_push(
+    app: AppHandle,
+    window: Window,
+    live_id: String,
+    user_state: State<'_, RwLock<Option<User>>>,
+    token_state: State<'_, RwLock<Option<Token>>>,
+    tcp_state: State<'_, Mutex<Option<Arc<TcpStream>>>>,
+) -> Result<(), ()> {
+    match &*user_state.read().await {
+        Some(user) => match &*token_state.read().await {
+            Some(token) => {
+                let stop = live::stop_push(user, token, &live_id)
+                    .await
+                    .expect("stop_push error");
+
+                if stop.result == 1 {
+                    *tcp_state.lock().unwrap() = None;
                 }
             }
             None => {}

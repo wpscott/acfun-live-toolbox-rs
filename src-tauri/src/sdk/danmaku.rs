@@ -332,12 +332,6 @@ impl ClientRequest {
     }
 }
 
-use std::io::{BufReader, BufWriter, Read, Write};
-use std::net::TcpStream;
-use std::sync::Arc;
-
-use flate2::read::GzDecoder;
-
 const SLINK_HOST: &str = "slink.gifshow.com:14000";
 
 pub async fn start<F: Fn(&str, Vec<u8>) + Sync + Send + 'static>(

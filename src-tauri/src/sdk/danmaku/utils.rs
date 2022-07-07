@@ -11,7 +11,7 @@ pub fn convert_key(token: &String) -> [u8; 32] {
 }
 
 fn encrypt(key: &[u8; 32], body: Vec<u8>) -> Vec<u8> {
-    let iv = Aes256CbcEnc::generate_iv(ChaChaRng::from_entropy());
+    let iv = Aes256CbcEnc::generate_iv( thread_rng());
 
     let mut encrypted = Aes256CbcEnc::new(key.into(), &iv).encrypt_padded_vec_mut::<Pkcs7>(&body);
 

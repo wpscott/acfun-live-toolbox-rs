@@ -51,7 +51,7 @@ fn main() {
             sdk::check_live_status,
             sdk::get_stream_config,
             sdk::start_push,
-            // sdk::stop_push,
+            sdk::stop_push,
             sdk::user::qr_login,
         ])
         .setup(|app| {
