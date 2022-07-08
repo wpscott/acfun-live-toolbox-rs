@@ -1,7 +1,7 @@
-pub mod r#enum;
-mod utils;
+#![allow(dead_code)]
 
-use tokio::{io::AsyncReadExt, time::Instant};
+pub mod Enum;
+mod utils;
 
 use super::prelude::*;
 
@@ -88,7 +88,7 @@ impl ClientRequest {
         };
 
         let payload = self.generate_payload(
-            r#enum::command::HANDSHAKE,
+            Enum::Command::HANDSHAKE,
             Some(request.write_to_bytes().unwrap()),
         );
 
@@ -124,7 +124,7 @@ impl ClientRequest {
         };
 
         let payload = self.generate_payload(
-            r#enum::command::REGISTER,
+            Enum::Command::REGISTER,
             Some(request.write_to_bytes().unwrap()),
         );
 
@@ -153,7 +153,7 @@ impl ClientRequest {
         };
 
         let payload = self.generate_payload(
-            r#enum::command::KEEP_ALIVE,
+            Enum::Command::KEEP_ALIVE,
             Some(request.write_to_bytes().unwrap()),
         );
 
@@ -174,12 +174,12 @@ impl ClientRequest {
         };
 
         let cmd = self.generate_command(
-            r#enum::global_command::ENTER_ROOM,
+            Enum::GlobalCommand::ENTER_ROOM,
             Some(request.write_to_bytes().unwrap()),
         );
 
         let payload = self.generate_payload(
-            r#enum::command::GLOBAL_COMMAND,
+            Enum::Command::GLOBAL_COMMAND,
             Some(cmd.write_to_bytes().unwrap()),
         );
 
@@ -193,7 +193,7 @@ impl ClientRequest {
     }
 
     pub fn push_message_response(&self, header_seq_id: i64) -> Vec<u8> {
-        let payload = self.generate_payload(r#enum::command::PUSH_MESSAGE, None);
+        let payload = self.generate_payload(Enum::Command::PUSH_MESSAGE, None);
 
         let body = payload.write_to_bytes().unwrap();
 
@@ -215,12 +215,12 @@ impl ClientRequest {
         };
 
         let cmd = self.generate_command(
-            r#enum::global_command::HEARTBEAT,
+            Enum::GlobalCommand::HEARTBEAT,
             Some(request.write_to_bytes().unwrap()),
         );
 
         let payload = self.generate_payload(
-            r#enum::command::GLOBAL_COMMAND,
+            Enum::Command::GLOBAL_COMMAND,
             Some(cmd.write_to_bytes().unwrap()),
         );
 
@@ -235,10 +235,10 @@ impl ClientRequest {
     }
 
     pub fn user_exit_request(&self) -> Vec<u8> {
-        let cmd = self.generate_command(r#enum::global_command::USER_EXIT, None);
+        let cmd = self.generate_command(Enum::GlobalCommand::USER_EXIT, None);
 
         let payload = self.generate_payload(
-            r#enum::command::GLOBAL_COMMAND,
+            Enum::Command::GLOBAL_COMMAND,
             Some(cmd.write_to_bytes().unwrap()),
         );
 
@@ -250,7 +250,7 @@ impl ClientRequest {
     }
 
     pub fn unregister_request(&self) -> Vec<u8> {
-        let payload = self.generate_payload(r#enum::command::UNREGISTER, None);
+        let payload = self.generate_payload(Enum::Command::UNREGISTER, None);
 
         let body = payload.write_to_bytes().unwrap();
 
@@ -366,10 +366,10 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                     );
 
 //                     match down.command.as_str() {
-//                         r#enum::command::GLOBAL_COMMAND => {
+//                         r#enum::Command::GLOBAL_COMMAND => {
 //                             let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
 //                             match cmd.cmdAckType.as_str() {
-//                                 r#enum::global_command::ENTER_ROOM_ACK => {
+//                                 r#enum::GlobalCommand::ENTER_ROOM_ACK => {
 //                                     let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload)
 //                                         .unwrap();
 
@@ -385,8 +385,8 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                                         },
 //                                     ));
 //                                 }
-//                                 r#enum::global_command::HEARTBEAT_ACK => {}
-//                                 r#enum::global_command::USER_EXIT_ACK => {}
+//                                 r#enum::GlobalCommand::HEARTBEAT_ACK => {}
+//                                 r#enum::GlobalCommand::USER_EXIT_ACK => {}
 //                                 _ => {
 //                                     log::log!(
 //                                         log::Level::Warn,
@@ -396,7 +396,7 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                                 }
 //                             }
 //                         }
-//                         r#enum::command::PUSH_MESSAGE => {
+//                         r#enum::Command::PUSH_MESSAGE => {
 //                             writer
 //                                 .lock()
 //                                 .unwrap()
@@ -414,16 +414,16 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                             }
 //                             let msg_type = message.messageType.as_str();
 //                             match msg_type {
-//                                 r#enum::push_message::ACTION_SIGNAL => {
+//                                 r#enum::PushMessage::ACTION_SIGNAL => {
 //                                     handler(msg_type, payload);
 //                                 }
-//                                 r#enum::push_message::STATE_SIGNAL => {
+//                                 r#enum::PushMessage::STATE_SIGNAL => {
 //                                     handler(msg_type, payload);
 //                                 }
-//                                 r#enum::push_message::NOTIFY_SIGNAL => {
+//                                 r#enum::PushMessage::NOTIFY_SIGNAL => {
 //                                     handler(msg_type, payload);
 //                                 }
-//                                 r#enum::push_message::STATUS_CHANGED => {
+//                                 r#enum::PushMessage::STATUS_CHANGED => {
 //                                     let resp =
 //                                         ZtLiveScStatusChanged::parse_from_bytes(&payload).unwrap();
 //                                     match resp.type_.unwrap() {
@@ -436,7 +436,7 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                                         _ => {}
 //                                     }
 //                                 }
-//                                 r#enum::push_message::TICKET_INVALID => {
+//                                 r#enum::PushMessage::TICKET_INVALID => {
 //                                     Arc::get_mut(&mut request).unwrap().next_ticket();
 //                                     writer
 //                                         .lock()
@@ -453,8 +453,8 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                                 }
 //                             }
 //                         }
-//                         r#enum::command::HANDSHAKE => {}
-//                         r#enum::command::REGISTER => {
+//                         r#enum::Command::HANDSHAKE => {}
+//                         r#enum::Command::REGISTER => {
 //                             let resp =
 //                                 RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
 //                             Arc::get_mut(&mut request).unwrap().register(
@@ -474,11 +474,11 @@ const SLINK_HOST: &str = "slink.gifshow.com:14000";
 //                                 .write(&request.enter_room_request())
 //                                 .unwrap();
 //                         }
-//                         r#enum::command::UNREGISTER => {
+//                         r#enum::Command::UNREGISTER => {
 //                             break;
 //                         }
-//                         r#enum::command::KEEP_ALIVE => {}
-//                         r#enum::command::PING => {}
+//                         r#enum::Command::KEEP_ALIVE => {}
+//                         r#enum::Command::PING => {}
 //                         _ => {
 //                             log::log!(log::Level::Warn, "Unhandled command: {:?}", down)
 //                         }
@@ -594,17 +594,17 @@ impl Client {
                             self.request.get_session_key(),
                         );
                         match down.command.as_str() {
-                            r#enum::command::GLOBAL_COMMAND => {
+                            Enum::Command::GLOBAL_COMMAND => {
                                 let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
                                 match cmd.cmdAckType.as_str() {
-                                    r#enum::global_command::ENTER_ROOM_ACK => {
+                                    Enum::GlobalCommand::ENTER_ROOM_ACK => {
                                         let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload)
                                             .unwrap();
                                         let duration = Duration::from_millis(ack.heartbeatIntervalMs.try_into().unwrap());
                                         heartbeat_interval = interval_at(Instant::now() + duration,duration);
                                     }
-                                    r#enum::global_command::HEARTBEAT_ACK => {}
-                                    r#enum::global_command::USER_EXIT_ACK => {}
+                                    Enum::GlobalCommand::HEARTBEAT_ACK => {}
+                                    Enum::GlobalCommand::USER_EXIT_ACK => {}
                                     _ => {
                                         log::log!(
                                             log::Level::Warn,
@@ -614,7 +614,7 @@ impl Client {
                                     }
                                 }
                             }
-                            r#enum::command::PUSH_MESSAGE => {
+                            Enum::Command::PUSH_MESSAGE => {
                                 write
                                     .write(&self.request.push_message_response(header.seqId))
                                     .await.unwrap();
@@ -630,10 +630,10 @@ impl Client {
                                 }
                                 let msg_type = message.messageType.as_str();
                                 match msg_type {
-                                    r#enum::push_message::ACTION_SIGNAL | r#enum::push_message::STATE_SIGNAL | r#enum::push_message::NOTIFY_SIGNAL => {
+                                    Enum::PushMessage::ACTION_SIGNAL | Enum::PushMessage::STATE_SIGNAL | Enum::PushMessage::NOTIFY_SIGNAL => {
                                         handler(msg_type, payload);
                                     }
-                                    r#enum::push_message::STATUS_CHANGED => {
+                                    Enum::PushMessage::STATUS_CHANGED => {
                                         let resp =
                                             ZtLiveScStatusChanged::parse_from_bytes(&payload).unwrap();
                                         match resp.type_.unwrap() {
@@ -643,7 +643,7 @@ impl Client {
                                             _ => {}
                                         }
                                     }
-                                    r#enum::push_message::TICKET_INVALID => {
+                                    Enum::PushMessage::TICKET_INVALID => {
                                         self.request.next_ticket();
                                         write
 
@@ -659,8 +659,8 @@ impl Client {
                                     }
                                 }
                             }
-                            r#enum::command::HANDSHAKE => {}
-                            r#enum::command::REGISTER => {
+                            Enum::Command::HANDSHAKE => {}
+                            Enum::Command::REGISTER => {
                                 let resp =
                                     RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
                                 self.request.register(
@@ -675,11 +675,11 @@ impl Client {
                                     .write(&self.request.enter_room_request())
                                     .await.unwrap();
                             }
-                            r#enum::command::UNREGISTER => {
+                            Enum::Command::UNREGISTER => {
                                 break;
                             }
-                            r#enum::command::KEEP_ALIVE => {}
-                            r#enum::command::PING => {}
+                            Enum::Command::KEEP_ALIVE => {}
+                            Enum::Command::PING => {}
                             _ => {
                                 log::log!(log::Level::Warn, "Unhandled command: {:?}", down)
                             }

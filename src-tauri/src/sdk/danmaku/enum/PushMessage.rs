@@ -1,6 +1,6 @@
-pub mod action_signal;
-pub mod notify_signal;
-pub mod state_signal;
+pub mod ActionSignal;
+pub mod NotifySignal;
+pub mod StateSignal;
 
 pub const ACTION_SIGNAL: &str = "ZtLiveScActionSignal";
 pub const STATE_SIGNAL: &str = "ZtLiveScStateSignal";

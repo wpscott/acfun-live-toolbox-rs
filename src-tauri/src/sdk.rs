@@ -1,9 +1,12 @@
+#![allow(non_snake_case)]
+#![allow(unused_variables)]
+
+pub mod prelude;
+
 mod danmaku;
 pub mod db;
 mod live;
 pub mod user;
-
-pub mod prelude;
 
 use prelude::*;
 
@@ -167,42 +170,87 @@ pub async fn start_push(
                     let notify = client
                         .start(move |msg_type, payload| {
                             match msg_type {
-                                danmaku::r#enum::push_message::ACTION_SIGNAL => {
+                                danmaku::Enum::PushMessage::ACTION_SIGNAL => {
                                     let signal = ZtLiveScActionSignal::parse_from_bytes(&payload).unwrap();
                                     for item in signal.item {
                                         match item.signalType.as_str() {
-                                            danmaku::r#enum::push_message::action_signal::COMMENT => {
+                                            danmaku::Enum::PushMessage::ActionSignal::COMMENT => {
                                                 for payload in item.payload {
                                                     let data  = CommonActionSignalComment::parse_from_bytes(&payload).unwrap();
                                                     app.emit_all("danmaku", Payload { caption: 1001, message: data.content}).unwrap();
                                                 }
                                             }
-                                            danmaku::r#enum::push_message::action_signal::ENTER_ROOM=>{for payload in item.payload {
-                                                let data  = CommonActionSignalUserEnterRoom::parse_from_bytes(&payload).unwrap();
-                                                app.emit_all("danmaku", Payload { caption: 1002, message: data.userInfo.unwrap().nickname}).unwrap();
-                                            }}
-                                            danmaku::r#enum::push_message::action_signal::LIKE=>{for payload in item.payload {
-                                                let data  = CommonActionSignalLike::parse_from_bytes(&payload).unwrap();
-                                                app.emit_all("danmaku", Payload { caption: 1003, message: data.userInfo.unwrap().nickname}).unwrap();
-                                            }}
-                                            danmaku::r#enum::push_message::action_signal::FOLLOW=>{for payload in item.payload {
-                                                let data  = CommonActionSignalUserFollowAuthor::parse_from_bytes(&payload).unwrap();
-                                                app.emit_all("danmaku", Payload { caption: 1004, message: data.userInfo.unwrap().nickname}).unwrap();
-                                            }}
-                                            danmaku::r#enum::push_message::action_signal::GIFT=>{for payload in item.payload {
-                                                let data  = CommonActionSignalGift::parse_from_bytes(&payload).unwrap();
-                                                app.emit_all("danmaku", Payload { caption: 1005, message: data.userInfo.unwrap().nickname}).unwrap();
-                                            }}
-                                            danmaku::r#enum::push_message::action_signal::THROW_BANANA=>{}
+                                            danmaku::Enum::PushMessage::ActionSignal::ENTER_ROOM=>{
+                                                for payload in item.payload {
+                                                    let data  = CommonActionSignalUserEnterRoom::parse_from_bytes(&payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1002, message: data.userInfo.unwrap().nickname}).unwrap();
+                                                }
+                                            }
+                                            danmaku::Enum::PushMessage::ActionSignal::LIKE => {
+                                                for payload in item.payload {
+                                                    let data  = CommonActionSignalLike::parse_from_bytes(&payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1003, message: data.userInfo.unwrap().nickname}).unwrap();
+                                                }
+                                            }
+                                            danmaku::Enum::PushMessage::ActionSignal::FOLLOW => {
+                                                for payload in item.payload {
+                                                    let data  = CommonActionSignalUserFollowAuthor::parse_from_bytes(&payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1004, message: data.userInfo.unwrap().nickname}).unwrap();
+                                                }
+                                            }
+                                            danmaku::Enum::PushMessage::ActionSignal::GIFT => {
+                                                for payload in item.payload {
+                                                    let data  = CommonActionSignalGift::parse_from_bytes(&payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1005, message: data.userInfo.unwrap().nickname}).unwrap();
+                                                }
+                                            }
+                                            danmaku::Enum::PushMessage::ActionSignal::THROW_BANANA => {}
                                             _ => {}
                                         }
                                     }
                                 }
-                                danmaku::r#enum::push_message::STATE_SIGNAL => {
-
+                                danmaku::Enum::PushMessage::STATE_SIGNAL => {
+                                    let signal = ZtLiveScStateSignal::parse_from_bytes(&payload).unwrap();
+                                    for item in signal.item {
+                                        match item.signalType.as_str() {
+                                            danmaku::Enum::PushMessage::StateSignal::ACFUN_DISPLAY_INFO => {
+                                                let data  = AcfunStateSignalDisplayInfo::parse_from_bytes(&item.payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1011, message: data.bananaCount}).unwrap();
+                                            }
+                                            danmaku::Enum::PushMessage::StateSignal::DISPLAY_INFO => {
+                                                let data  = CommonStateSignalDisplayInfo::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1012, message: data.likeCount}).unwrap();
+                                            }
+                                            danmaku::Enum::PushMessage::StateSignal::TOP_USRES => {
+                                                let data  = CommonStateSignalTopUsers::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1013, message: data.user[0].userInfo.nickname.as_str()}).unwrap();
+                                            }
+                                            danmaku::Enum::PushMessage::StateSignal::RECENT_COMMENT => {
+                                                let data  = CommonStateSignalRecentComment::parse_from_bytes(&payload).unwrap();
+                                                for comment in data.comment {
+                                                    app.emit_all("danmaku", Payload { caption: 1001, message: comment.content}).unwrap();
+                                                }
+                                            }
+                                            danmaku::Enum::PushMessage::StateSignal::CHAT_CALL => {}
+                                            danmaku::Enum::PushMessage::StateSignal::CHAT_ACCEPT => {}
+                                            danmaku::Enum::PushMessage::StateSignal::CHAT_READY => {}
+                                            danmaku::Enum::PushMessage::StateSignal::CHAT_END => {}
+                                            danmaku::Enum::PushMessage::StateSignal::CURRENT_RED_PACK_LIST => {}
+                                            danmaku::Enum::PushMessage::StateSignal::AR_LIVE_TREASURE_BOX_STATE => {}
+                                            _ => {}
+                                        }
+                                    }
                                 }
-                                danmaku::r#enum::push_message::NOTIFY_SIGNAL => {
-
+                                danmaku::Enum::PushMessage::NOTIFY_SIGNAL => {
+                                    let signal = ZtLiveScActionSignal::parse_from_bytes(&payload).unwrap();
+                                    for item in signal.item {
+                                        match item.signalType.as_str() {
+                                            danmaku::Enum::PushMessage::NotifySignal::KICKED_OUT => {}
+                                            danmaku::Enum::PushMessage::NotifySignal::VIOLATION_ALERT => {}
+                                            danmaku::Enum::PushMessage::NotifySignal::LIVE_MANAGER_STATE => {}
+                                            _ => {}
+                                        }
+                                    }
                                 }
                                 _ => {}
                             }

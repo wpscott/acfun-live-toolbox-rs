@@ -1,3 +1,6 @@
-pub mod command;
-pub mod global_command;
-pub mod push_message;
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+
+pub mod Command;
+pub mod GlobalCommand;
+pub mod PushMessage;
