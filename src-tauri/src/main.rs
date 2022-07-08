@@ -3,21 +3,15 @@
     windows_subsystem = "windows"
 )]
 
-// use std::{sync::{Arc, Mutex}, net::TcpStream};
+use acfun_live_toolbox::sdk;
+use acfun_live_toolbox::sdk::prelude::*;
 
-// use tokio::sync::RwLock;
-
-use tauri::Manager;
-use uuid::Uuid;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use window_shadows::set_shadow;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-
-use acfun_live_toolbox::sdk;
-use acfun_live_toolbox::sdk::prelude::*;
 
 fn main() {
     let conn = db::initialize().unwrap();
@@ -33,12 +27,12 @@ fn main() {
                 .build(),
         )
         .manage(match result {
-            Ok(user) => RwLock::new(user),
-            Err(_) => RwLock::new(Option::<User>::None),
+            Ok(user) => UserState::new(user),
+            Err(_) => UserState::new(None),
         })
         .manage(Uuid::new_v4().hyphenated())
-        .manage(RwLock::new(Option::<Token>::None))
-        .manage(Mutex::<Option<Arc<TcpStream>>>::new(None))
+        .manage(TokenState::new(None))
+        .manage(ClientState::new(None))
         .menu(if cfg!(target_os = "macos") {
             tauri::Menu::os_default(&context.package_info().name)
         } else {

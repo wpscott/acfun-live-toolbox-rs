@@ -42,9 +42,9 @@ struct Payload {
 #[tauri::command]
 pub async fn qr_login(
     window: Window,
-    user_state: State<'_, RwLock<Option<User>>>,
-    did: State<'_, Hyphenated>,
-    token_state: State<'_, RwLock<Option<Token>>>,
+    user_state: State<'_, UserState>,
+    did: State<'_, DidState>,
+    token_state: State<'_, TokenState>,
 ) -> Result<(), ()> {
     window
         .emit(
@@ -56,7 +56,7 @@ pub async fn qr_login(
         )
         .unwrap();
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -149,7 +149,7 @@ pub async fn qr_login(
 
 async fn get_token(user: &User, did: &String) -> Token {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let req = Request::builder()
         .method(Method::POST)

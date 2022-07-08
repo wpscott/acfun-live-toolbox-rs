@@ -1,37 +1,75 @@
 pub use super::db;
-pub use super::live::StartPushData;
-pub use super::{Token, User, VERSION};
-pub use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-pub use aes::Aes256;
-pub use flate2::read::GzDecoder;
-pub use hmac::{Hmac, Mac};
-pub use hyper::{
+pub(crate) use super::live::StartPushData;
+pub(crate) use super::{Token, User, VERSION};
+pub(crate) use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+pub(crate) use aes::Aes256;
+pub(crate) use flate2::read::GzDecoder;
+pub(crate) use hmac::{Hmac, Mac};
+pub(crate) use hyper::{
     body::{aggregate, Buf},
-    Body, Client, Method, Request,
+    Body, Client as HyperClient, Method, Request,
 };
-pub use hyper_tls::HttpsConnector;
+pub(crate) use hyper_tls::HttpsConnector;
 pub use log::LevelFilter;
-pub use protobuf::{EnumOrUnknown, Message, MessageField};
-pub use rand::prelude::*;
-pub use rusqlite::{params, Connection, Result};
-pub use serde::{Deserialize, Serialize};
-pub use serde_json;
-pub use sha2::Sha256;
-pub use std::io::{BufReader, BufWriter, Read, Write};
-pub use std::{
+pub(crate) use protobuf::{EnumOrUnknown, Message, MessageField};
+pub(crate) use rand::prelude::*;
+pub(crate) use rusqlite::{params, Connection, Result};
+pub(crate) use serde::{Deserialize, Serialize};
+pub(crate) use serde_json;
+pub(crate) use sha2::Sha256;
+
+
+pub(crate) use std::io::{Read, Write};
+pub(crate) use std::time::Duration;
+pub(crate) use std::{
     collections::BTreeMap,
-    net::{Shutdown, TcpStream},
     sync::atomic::{AtomicI64, Ordering},
-    sync::{Arc, Mutex},
+    sync::{Arc},
     time::{SystemTime, UNIX_EPOCH},
 };
 pub use tauri::{AppHandle, Manager, State, Window};
 pub use tauri_plugin_log::{LogTarget, LoggerBuilder, RotationStrategy};
-pub use tokio::sync::RwLock;
-pub use uuid::fmt::Hyphenated;
+pub(crate) use tokio::{
+    io::AsyncBufReadExt, io::AsyncWriteExt,
+    net::TcpStream as TokioTcpStream, sync::Notify, sync::RwLock, time::interval_at,
+};
+pub(crate) use uuid::fmt::Hyphenated;
 pub use uuid::Uuid;
 
-pub type HyperError = Box<dyn std::error::Error + Send + Sync + 'static>;
-pub type Aes256CbcEnc = cbc::Encryptor<Aes256>;
-pub type Aes256CbcDec = cbc::Decryptor<Aes256>;
-pub type HmacSha256 = Hmac<Sha256>;
+pub(crate) use crate::{
+    AppInfo::AppInfo,
+    CommonActionSignalComment::CommonActionSignalComment,
+    CommonActionSignalGift::CommonActionSignalGift,
+    CommonActionSignalLike::CommonActionSignalLike,
+    CommonActionSignalUserEnterRoom::CommonActionSignalUserEnterRoom,
+    CommonActionSignalUserFollowAuthor::CommonActionSignalUserFollowAuthor,
+    DeviceInfo::{device_info::PlatformType, DeviceInfo},
+    HandshakeRequest::HandshakeRequest,
+    KeepAliveRequest::KeepAliveRequest,
+    PacketHeader::{packet_header::EncryptionMode, PacketHeader},
+    RegisterRequest::{
+        register_request::{ActiveStatus, PresenceStatus},
+        RegisterRequest,
+    },
+    RegisterResponse::RegisterResponse,
+    TokenInfo::{token_info::TokenType, TokenInfo},
+    UpstreamPayload::UpstreamPayload,
+    ZtCommonInfo::ZtCommonInfo,
+    ZtLiveCsCmd::ZtLiveCsCmd,
+    ZtLiveCsCmd::ZtLiveCsCmdAck,
+    ZtLiveCsEnterRoom::{ZtLiveCsEnterRoom, ZtLiveCsEnterRoomAck},
+    ZtLiveCsHeartbeat::ZtLiveCsHeartbeat,
+    ZtLiveScActionSignal::ZtLiveScActionSignal,
+    ZtLiveScMessage::{zt_live_sc_message::CompressionType, ZtLiveScMessage},
+    ZtLiveScStatusChanged::{zt_live_sc_status_changed::Type, ZtLiveScStatusChanged},
+};
+
+pub(crate) type NetworkError = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub(crate) type Aes256CbcEnc = cbc::Encryptor<Aes256>;
+pub(crate) type Aes256CbcDec = cbc::Decryptor<Aes256>;
+pub(crate) type HmacSha256 = Hmac<Sha256>;
+
+pub type DidState = Hyphenated;
+pub type UserState = RwLock<Option<User>>;
+pub type TokenState = RwLock<Option<Token>>;
+pub type ClientState = RwLock<Option<Arc<Notify>>>;

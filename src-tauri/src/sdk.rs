@@ -48,7 +48,7 @@ pub struct Token {
 }
 
 #[tauri::command]
-pub async fn is_login(user_state: State<'_, RwLock<Option<User>>>) -> Result<bool, ()> {
+pub async fn is_login(user_state: State<'_, UserState>) -> Result<bool, ()> {
     Ok(match *user_state.read().await {
         Some(_) => true,
         None => false,
@@ -56,15 +56,15 @@ pub async fn is_login(user_state: State<'_, RwLock<Option<User>>>) -> Result<boo
 }
 
 #[tauri::command]
-pub async fn get_user(user_state: State<'_, RwLock<Option<User>>>) -> Result<Option<User>, ()> {
+pub async fn get_user(user_state: State<'_, UserState>) -> Result<Option<User>, ()> {
     Ok((*user_state.read().await).clone())
 }
 
 #[tauri::command]
 pub async fn check_live_auth(
-    user_state: State<'_, RwLock<Option<User>>>,
-    did: State<'_, Hyphenated>,
-    token_state: State<'_, RwLock<Option<Token>>>,
+    user_state: State<'_, UserState>,
+    did: State<'_, DidState>,
+    token_state: State<'_, TokenState>,
 ) -> Result<bool, ()> {
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
@@ -86,9 +86,9 @@ pub async fn check_live_auth(
 
 #[tauri::command]
 pub async fn check_live_status(
-    user_state: State<'_, RwLock<Option<User>>>,
+    user_state: State<'_, UserState>,
     did: State<'_, Hyphenated>,
-    token_state: State<'_, RwLock<Option<Token>>>,
+    token_state: State<'_, TokenState>,
 ) -> Result<Option<String>, ()> {
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
@@ -110,9 +110,9 @@ pub async fn check_live_status(
 
 #[tauri::command]
 pub async fn get_stream_config(
-    user_state: State<'_, RwLock<Option<User>>>,
+    user_state: State<'_, UserState>,
     did: State<'_, Hyphenated>,
-    token_state: State<'_, RwLock<Option<Token>>>,
+    token_state: State<'_, TokenState>,
 ) -> Result<Option<String>, ()> {
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
@@ -135,7 +135,7 @@ pub async fn get_stream_config(
 
 #[derive(Clone, Serialize)]
 struct Payload<T> {
-    caption: String,
+    caption: u32,
     message: T,
 }
 
@@ -143,10 +143,18 @@ struct Payload<T> {
 pub async fn start_push(
     app: AppHandle,
     window: Window,
-    user_state: State<'_, RwLock<Option<User>>>,
-    token_state: State<'_, RwLock<Option<Token>>>,
-    tcp_state: State<'_, Mutex<Option<Arc<TcpStream>>>>,
+    user_state: State<'_, UserState>,
+    token_state: State<'_, TokenState>,
+    client_state: State<'_, RwLock<Option<Arc<Notify>>>>,
 ) -> Result<(), ()> {
+    match &*client_state.read().await {
+        Some(notify) => {
+            notify.notify_one();
+        }
+        None => {}
+    }
+    *client_state.write().await = None;
+
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
             Some(token) => {
@@ -155,21 +163,52 @@ pub async fn start_push(
                     .expect("start_push error");
 
                 if start.result == 1 {
-                    let tcp = danmaku::start(user, token, start.data, |msg_type, payload| {
-                        // app.emit_all(
-                        //     "danmkaku",
-                        //     Payload {
-                        //         caption: "".to_string(),
-                        //         message: Some("".to_string()),
-                        //     },).unwrap());
-                        match msg_type {
-                            danmaku::r#enum::push_message::action_signal::COMMENT => {}
-                            _ => {}
-                        }
-                    })
-                    .await;
+                    let client = danmaku::Client::new_from_user(user, token, start.data);
+                    let notify = client
+                        .start(move |msg_type, payload| {
+                            match msg_type {
+                                danmaku::r#enum::push_message::ACTION_SIGNAL => {
+                                    let signal = ZtLiveScActionSignal::parse_from_bytes(&payload).unwrap();
+                                    for item in signal.item {
+                                        match item.signalType.as_str() {
+                                            danmaku::r#enum::push_message::action_signal::COMMENT => {
+                                                for payload in item.payload {
+                                                    let data  = CommonActionSignalComment::parse_from_bytes(&payload).unwrap();
+                                                    app.emit_all("danmaku", Payload { caption: 1001, message: data.content}).unwrap();
+                                                }
+                                            }
+                                            danmaku::r#enum::push_message::action_signal::ENTER_ROOM=>{for payload in item.payload {
+                                                let data  = CommonActionSignalUserEnterRoom::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1002, message: data.userInfo.unwrap().nickname}).unwrap();
+                                            }}
+                                            danmaku::r#enum::push_message::action_signal::LIKE=>{for payload in item.payload {
+                                                let data  = CommonActionSignalLike::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1003, message: data.userInfo.unwrap().nickname}).unwrap();
+                                            }}
+                                            danmaku::r#enum::push_message::action_signal::FOLLOW=>{for payload in item.payload {
+                                                let data  = CommonActionSignalUserFollowAuthor::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1004, message: data.userInfo.unwrap().nickname}).unwrap();
+                                            }}
+                                            danmaku::r#enum::push_message::action_signal::GIFT=>{for payload in item.payload {
+                                                let data  = CommonActionSignalGift::parse_from_bytes(&payload).unwrap();
+                                                app.emit_all("danmaku", Payload { caption: 1005, message: data.userInfo.unwrap().nickname}).unwrap();
+                                            }}
+                                            danmaku::r#enum::push_message::action_signal::THROW_BANANA=>{}
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                                danmaku::r#enum::push_message::STATE_SIGNAL => {
 
-                    *tcp_state.lock().unwrap() = Some(tcp);
+                                }
+                                danmaku::r#enum::push_message::NOTIFY_SIGNAL => {
+
+                                }
+                                _ => {}
+                            }
+                        })
+                        .await;
+                    *client_state.write().await = Some(notify);
                 }
             }
             None => {}
@@ -185,9 +224,9 @@ pub async fn stop_push(
     app: AppHandle,
     window: Window,
     live_id: String,
-    user_state: State<'_, RwLock<Option<User>>>,
-    token_state: State<'_, RwLock<Option<Token>>>,
-    tcp_state: State<'_, Mutex<Option<Arc<TcpStream>>>>,
+    user_state: State<'_, UserState>,
+    token_state: State<'_, TokenState>,
+    client_state: State<'_, ClientState>,
 ) -> Result<(), ()> {
     match &*user_state.read().await {
         Some(user) => match &*token_state.read().await {
@@ -197,7 +236,13 @@ pub async fn stop_push(
                     .expect("stop_push error");
 
                 if stop.result == 1 {
-                    *tcp_state.lock().unwrap() = None;
+                    match &*client_state.read().await {
+                        Some(notify) => {
+                            notify.notify_one();
+                        }
+                        None => {}
+                    }
+                    *client_state.write().await = None;
                 }
             }
             None => {}

@@ -1,29 +1,9 @@
 pub mod r#enum;
 mod utils;
 
-use super::prelude::*;
+use tokio::{io::AsyncReadExt, time::Instant};
 
-use crate::{
-    AppInfo::AppInfo,
-    DeviceInfo::{device_info::PlatformType, DeviceInfo},
-    HandshakeRequest::HandshakeRequest,
-    KeepAliveRequest::KeepAliveRequest,
-    PacketHeader::{packet_header::EncryptionMode, PacketHeader},
-    RegisterRequest::{
-        register_request::{ActiveStatus, PresenceStatus},
-        RegisterRequest,
-    },
-    RegisterResponse::RegisterResponse,
-    TokenInfo::{token_info::TokenType, TokenInfo},
-    UpstreamPayload::UpstreamPayload,
-    ZtCommonInfo::ZtCommonInfo,
-    ZtLiveCsCmd::ZtLiveCsCmd,
-    ZtLiveCsCmd::ZtLiveCsCmdAck,
-    ZtLiveCsEnterRoom::{ZtLiveCsEnterRoom, ZtLiveCsEnterRoomAck},
-    ZtLiveCsHeartbeat::ZtLiveCsHeartbeat,
-    ZtLiveScMessage::{zt_live_sc_message::CompressionType, ZtLiveScMessage},
-    ZtLiveScStatusChanged::{zt_live_sc_status_changed::Type, ZtLiveScStatusChanged},
-};
+use super::prelude::*;
 
 #[derive(Debug, Default)]
 pub struct ClientRequest {
@@ -334,183 +314,388 @@ impl ClientRequest {
 
 const SLINK_HOST: &str = "slink.gifshow.com:14000";
 
-pub async fn start<F: Fn(&str, Vec<u8>) + Sync + Send + 'static>(
-    user: &User,
-    token: &Token,
-    push_data: StartPushData,
-    handler: F,
-) -> Arc<TcpStream> {
-    let mut request = Arc::<ClientRequest>::new(ClientRequest::new(
-        user.userid,
-        token.st.clone(),
-        &token.ssecurity,
-        push_data.liveId,
-        push_data.enterRoomAttach,
-        push_data.availableTickets,
-    ));
+// pub async fn start<F: Fn(&str, Vec<u8>) + Sync + Send + 'static>(
+//     user: &User,
+//     token: &Token,
+//     push_data: StartPushData,
+//     handler: F,
+// ) -> Arc<TcpStream> {
+//     let mut request = Arc::<ClientRequest>::new(ClientRequest::new(
+//         user.userid,
+//         token.st.clone(),
+//         &token.ssecurity,
+//         push_data.liveId,
+//         push_data.enterRoomAttach,
+//         push_data.availableTickets,
+//     ));
 
-    match TcpStream::connect(SLINK_HOST) {
-        Ok(stream) => {
-            let tcp = Arc::new(stream);
-            let write = tcp.try_clone().unwrap();
-            let read = tcp.try_clone().unwrap();
+//     match TcpStream::connect(SLINK_HOST) {
+//         Ok(stream) => {
+//             let tcp = Arc::new(stream);
+//             let write = tcp.try_clone().unwrap();
+//             let read = tcp.try_clone().unwrap();
 
-            // let mut buffer = [0u8; 8192];
+//             // let mut buffer = [0u8; 8192];
+//             let mut buffer = vec![0u8; 8192];
+//             let writer = Arc::<Mutex<BufWriter<TcpStream>>>::new(Mutex::new(BufWriter::new(write)));
+//             let mut reader = BufReader::new(read);
+
+//             writer
+//                 .lock()
+//                 .unwrap()
+//                 .write(&request.handshake_request())
+//                 .unwrap();
+//             writer
+//                 .lock()
+//                 .unwrap()
+//                 .write(&request.register_request())
+//                 .unwrap();
+
+//             std::thread::spawn(move || {
+//                 let timer = timer::Timer::new();
+
+//                 let mut guard = Option::<timer::Guard>::None;
+
+//                 loop {
+//                     reader.read_to_end(&mut buffer).unwrap();
+
+//                     let (header, down) = utils::decode(
+//                         &buffer,
+//                         request.get_security_key(),
+//                         request.get_session_key(),
+//                     );
+
+//                     match down.command.as_str() {
+//                         r#enum::command::GLOBAL_COMMAND => {
+//                             let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
+//                             match cmd.cmdAckType.as_str() {
+//                                 r#enum::global_command::ENTER_ROOM_ACK => {
+//                                     let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload)
+//                                         .unwrap();
+
+//                                     let hbh = Arc::clone(&writer);
+//                                     let copy = Arc::clone(&request);
+//                                     guard = Some(timer.schedule_repeating(
+//                                         chrono::Duration::milliseconds(ack.heartbeatIntervalMs),
+//                                         move || {
+//                                             hbh.lock()
+//                                                 .unwrap()
+//                                                 .write(&copy.heartbeat_request())
+//                                                 .unwrap();
+//                                         },
+//                                     ));
+//                                 }
+//                                 r#enum::global_command::HEARTBEAT_ACK => {}
+//                                 r#enum::global_command::USER_EXIT_ACK => {}
+//                                 _ => {
+//                                     log::log!(
+//                                         log::Level::Warn,
+//                                         "Unhandled Global.ZtLiveInteractive.CsCmdAck: {:?}",
+//                                         cmd
+//                                     )
+//                                 }
+//                             }
+//                         }
+//                         r#enum::command::PUSH_MESSAGE => {
+//                             writer
+//                                 .lock()
+//                                 .unwrap()
+//                                 .write(&request.push_message_response(header.seqId))
+//                                 .unwrap();
+
+//                             let message =
+//                                 ZtLiveScMessage::parse_from_bytes(&down.payloadData).unwrap();
+//                             let mut payload = message.payload;
+//                             if message.compressionType.unwrap() == CompressionType::GZIP {
+//                                 let mut d = GzDecoder::<&[u8]>::new(&payload);
+//                                 let mut de = Vec::new();
+//                                 d.read_to_end(&mut de).unwrap();
+//                                 payload = de;
+//                             }
+//                             let msg_type = message.messageType.as_str();
+//                             match msg_type {
+//                                 r#enum::push_message::ACTION_SIGNAL => {
+//                                     handler(msg_type, payload);
+//                                 }
+//                                 r#enum::push_message::STATE_SIGNAL => {
+//                                     handler(msg_type, payload);
+//                                 }
+//                                 r#enum::push_message::NOTIFY_SIGNAL => {
+//                                     handler(msg_type, payload);
+//                                 }
+//                                 r#enum::push_message::STATUS_CHANGED => {
+//                                     let resp =
+//                                         ZtLiveScStatusChanged::parse_from_bytes(&payload).unwrap();
+//                                     match resp.type_.unwrap() {
+//                                         Type::LIVE_CLOSED => {
+//                                             break;
+//                                         }
+//                                         Type::LIVE_BANNED => {
+//                                             break;
+//                                         }
+//                                         _ => {}
+//                                     }
+//                                 }
+//                                 r#enum::push_message::TICKET_INVALID => {
+//                                     Arc::get_mut(&mut request).unwrap().next_ticket();
+//                                     writer
+//                                         .lock()
+//                                         .unwrap()
+//                                         .write(&request.enter_room_request())
+//                                         .unwrap();
+//                                 }
+//                                 _ => {
+//                                     log::log!(
+//                                         log::Level::Warn,
+//                                         "Unhandled Push.ZtLiveInteractive.Message: {:?}",
+//                                         msg_type
+//                                     )
+//                                 }
+//                             }
+//                         }
+//                         r#enum::command::HANDSHAKE => {}
+//                         r#enum::command::REGISTER => {
+//                             let resp =
+//                                 RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
+//                             Arc::get_mut(&mut request).unwrap().register(
+//                                 resp.instanceId,
+//                                 resp.sessKey,
+//                                 resp.sdkOption.lz4CompressionThresholdBytes,
+//                             );
+
+//                             writer
+//                                 .lock()
+//                                 .unwrap()
+//                                 .write(&request.keep_alive_request())
+//                                 .unwrap();
+//                             writer
+//                                 .lock()
+//                                 .unwrap()
+//                                 .write(&request.enter_room_request())
+//                                 .unwrap();
+//                         }
+//                         r#enum::command::UNREGISTER => {
+//                             break;
+//                         }
+//                         r#enum::command::KEEP_ALIVE => {}
+//                         r#enum::command::PING => {}
+//                         _ => {
+//                             log::log!(log::Level::Warn, "Unhandled command: {:?}", down)
+//                         }
+//                     }
+//                 }
+//                 drop(guard);
+//             });
+
+//             return tcp;
+//         }
+//         Err(e) => {
+//             panic!("Failed to connect: {}", e);
+//         }
+//     }
+// }
+
+pub struct Client {
+    request: ClientRequest,
+}
+
+impl Client {
+    pub fn new_from_config(
+        user: &User,
+        token: &Token,
+        live_id: String,
+        enter_room_attach: String,
+        tickets: Vec<String>,
+    ) -> Self {
+        Client {
+            request: ClientRequest::new(
+                user.userid,
+                token.st.clone(),
+                &token.ssecurity,
+                live_id,
+                enter_room_attach,
+                tickets,
+            ),
+        }
+    }
+    pub fn new_from_user(user: &User, token: &Token, push_data: StartPushData) -> Self {
+        Client {
+            request: ClientRequest::new(
+                user.userid,
+                token.st.clone(),
+                &token.ssecurity,
+                push_data.liveId,
+                push_data.enterRoomAttach,
+                push_data.availableTickets,
+            ),
+        }
+    }
+
+    pub async fn start<F: Fn(&str, Vec<u8>) + Sync + Send + 'static>(
+        mut self,
+        handler: F,
+    ) -> Arc<Notify> {
+        // let (sender, mut receiver) = oneshot::channel::<()>();
+        let notify = Arc::new(Notify::new());
+        let note = notify.clone();
+        tokio::spawn(async move {
+            let mut stream = TokioTcpStream::connect(SLINK_HOST).await.unwrap();
+
+            let (mut read, mut write) = stream.split();
+
             let mut buffer = vec![0u8; 8192];
-            let writer = Arc::<Mutex<BufWriter<TcpStream>>>::new(Mutex::new(BufWriter::new(write)));
-            let mut reader = BufReader::new(read);
 
-            writer
-                .lock()
-                .unwrap()
-                .write(&request.handshake_request())
+            // Basic.Handshake
+            write
+                .write(&self.request.handshake_request())
+                .await
                 .unwrap();
-            writer
-                .lock()
-                .unwrap()
-                .write(&request.register_request())
-                .unwrap();
+            // read.read(&mut buffer).await.unwrap();
+            // Basic.Register
+            write.write(&self.request.register_request()).await.unwrap();
+            // read.read(&mut buffer).await.unwrap();
+            // let (_, down) = utils::decode(
+            //     &buffer,
+            //     self.request.get_security_key(),
+            //     self.request.get_session_key(),
+            // );
+            // let resp = RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
+            // self.request.register(
+            //     resp.instanceId,
+            //     resp.sessKey,
+            //     resp.sdkOption.lz4CompressionThresholdBytes,
+            // );
+            // // Basic.KeepAlive
+            // write.write(&self.request.keep_alive_request()).await.unwrap();
+            // read.read(&mut buffer).await.unwrap();
+            // // Global.ZtLiveInteractive.CsCmd -> ZtLiveCsEnterRoom
+            // write.write(&self.request.enter_room_request()).await.unwrap();
+            // read.read(&mut buffer).await.unwrap();
+            // let (_, down) = utils::decode(
+            //     &buffer,
+            //     self.request.get_security_key(),
+            //     self.request.get_session_key(),
+            // );
+            // let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
+            // let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload).unwrap();
 
-            std::thread::spawn(move || {
-                let timer = timer::Timer::new();
+            let duration = Duration::from_secs(300);
+            let mut heartbeat_interval = interval_at(Instant::now() + duration, duration);
 
-                let mut guard = Option::<timer::Guard>::None;
-
-                loop {
-                    reader.read_to_end(&mut buffer).unwrap();
-
-                    let (header, down) = utils::decode(
-                        &buffer,
-                        request.get_security_key(),
-                        request.get_session_key(),
-                    );
-
-                    match down.command.as_str() {
-                        r#enum::command::GLOBAL_COMMAND => {
-                            let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
-                            match cmd.cmdAckType.as_str() {
-                                r#enum::global_command::ENTER_ROOM_ACK => {
-                                    let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload)
-                                        .unwrap();
-
-                                    let hbh = Arc::clone(&writer);
-                                    let copy = Arc::clone(&request);
-                                    guard = Some(timer.schedule_repeating(
-                                        chrono::Duration::milliseconds(ack.heartbeatIntervalMs),
-                                        move || {
-                                            hbh.lock()
-                                                .unwrap()
-                                                .write(&copy.heartbeat_request())
-                                                .unwrap();
-                                        },
-                                    ));
-                                }
-                                r#enum::global_command::HEARTBEAT_ACK => {}
-                                r#enum::global_command::USER_EXIT_ACK => {}
-                                _ => {
-                                    log::log!(
-                                        log::Level::Warn,
-                                        "Unhandled Global.ZtLiveInteractive.CsCmdAck: {:?}",
-                                        cmd
-                                    )
-                                }
-                            }
-                        }
-                        r#enum::command::PUSH_MESSAGE => {
-                            writer
-                                .lock()
-                                .unwrap()
-                                .write(&request.push_message_response(header.seqId))
-                                .unwrap();
-
-                            let message =
-                                ZtLiveScMessage::parse_from_bytes(&down.payloadData).unwrap();
-                            let mut payload = message.payload;
-                            if message.compressionType.unwrap() == CompressionType::GZIP {
-                                let mut d = GzDecoder::<&[u8]>::new(&payload);
-                                let mut de = Vec::new();
-                                d.read_to_end(&mut de).unwrap();
-                                payload = de;
-                            }
-                            let msg_type = message.messageType.as_str();
-                            match msg_type {
-                                r#enum::push_message::ACTION_SIGNAL => {
-                                    handler(msg_type, payload);
-                                }
-                                r#enum::push_message::STATE_SIGNAL => {
-                                    handler(msg_type, payload);
-                                }
-                                r#enum::push_message::NOTIFY_SIGNAL => {
-                                    handler(msg_type, payload);
-                                }
-                                r#enum::push_message::STATUS_CHANGED => {
-                                    let resp =
-                                        ZtLiveScStatusChanged::parse_from_bytes(&payload).unwrap();
-                                    match resp.type_.unwrap() {
-                                        Type::LIVE_CLOSED => {
-                                            break;
-                                        }
-                                        Type::LIVE_BANNED => {
-                                            break;
-                                        }
-                                        _ => {}
+            loop {
+                tokio::select! {
+                    biased;
+                    // _ = &mut receiver => break,
+                    _ = note.notified() => break,
+                    _ = read.read(&mut buffer) => {
+                        let (header, down) = utils::decode(
+                            &buffer,
+                            self.request.get_security_key(),
+                            self.request.get_session_key(),
+                        );
+                        match down.command.as_str() {
+                            r#enum::command::GLOBAL_COMMAND => {
+                                let cmd = ZtLiveCsCmdAck::parse_from_bytes(&down.payloadData).unwrap();
+                                match cmd.cmdAckType.as_str() {
+                                    r#enum::global_command::ENTER_ROOM_ACK => {
+                                        let ack = ZtLiveCsEnterRoomAck::parse_from_bytes(&cmd.payload)
+                                            .unwrap();
+                                        let duration = Duration::from_millis(ack.heartbeatIntervalMs.try_into().unwrap());
+                                        heartbeat_interval = interval_at(Instant::now() + duration,duration);
+                                    }
+                                    r#enum::global_command::HEARTBEAT_ACK => {}
+                                    r#enum::global_command::USER_EXIT_ACK => {}
+                                    _ => {
+                                        log::log!(
+                                            log::Level::Warn,
+                                            "Unhandled Global.ZtLiveInteractive.CsCmdAck: {:?}",
+                                            cmd
+                                        )
                                     }
                                 }
-                                r#enum::push_message::TICKET_INVALID => {
-                                    Arc::get_mut(&mut request).unwrap().next_ticket();
-                                    writer
-                                        .lock()
-                                        .unwrap()
-                                        .write(&request.enter_room_request())
-                                        .unwrap();
+                            }
+                            r#enum::command::PUSH_MESSAGE => {
+                                write
+                                    .write(&self.request.push_message_response(header.seqId))
+                                    .await.unwrap();
+
+                                let message =
+                                    ZtLiveScMessage::parse_from_bytes(&down.payloadData).unwrap();
+                                let mut payload = message.payload;
+                                if message.compressionType.unwrap() == CompressionType::GZIP {
+                                    let mut d = GzDecoder::<&[u8]>::new(&payload);
+                                    let mut de = Vec::new();
+                                    d.read_to_end(&mut de).unwrap();
+                                    payload = de;
                                 }
-                                _ => {
-                                    log::log!(
-                                        log::Level::Warn,
-                                        "Unhandled Push.ZtLiveInteractive.Message: {:?}",
-                                        msg_type
-                                    )
+                                let msg_type = message.messageType.as_str();
+                                match msg_type {
+                                    r#enum::push_message::ACTION_SIGNAL | r#enum::push_message::STATE_SIGNAL | r#enum::push_message::NOTIFY_SIGNAL => {
+                                        handler(msg_type, payload);
+                                    }
+                                    r#enum::push_message::STATUS_CHANGED => {
+                                        let resp =
+                                            ZtLiveScStatusChanged::parse_from_bytes(&payload).unwrap();
+                                        match resp.type_.unwrap() {
+                                            Type::LIVE_CLOSED|Type::LIVE_BANNED => {
+                                                break;
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                    r#enum::push_message::TICKET_INVALID => {
+                                        self.request.next_ticket();
+                                        write
+
+                                            .write(&self.request.enter_room_request())
+                                            .await.unwrap();
+                                    }
+                                    _ => {
+                                        log::log!(
+                                            log::Level::Warn,
+                                            "Unhandled Push.ZtLiveInteractive.Message: {:?}",
+                                            msg_type
+                                        )
+                                    }
                                 }
                             }
+                            r#enum::command::HANDSHAKE => {}
+                            r#enum::command::REGISTER => {
+                                let resp =
+                                    RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
+                                self.request.register(
+                                    resp.instanceId,
+                                    resp.sessKey,
+                                    resp.sdkOption.lz4CompressionThresholdBytes,
+                                );
+                                write
+                                    .write(&self.request.keep_alive_request())
+                                    .await.unwrap();
+                                write
+                                    .write(&self.request.enter_room_request())
+                                    .await.unwrap();
+                            }
+                            r#enum::command::UNREGISTER => {
+                                break;
+                            }
+                            r#enum::command::KEEP_ALIVE => {}
+                            r#enum::command::PING => {}
+                            _ => {
+                                log::log!(log::Level::Warn, "Unhandled command: {:?}", down)
+                            }
                         }
-                        r#enum::command::HANDSHAKE => {}
-                        r#enum::command::REGISTER => {
-                            let resp =
-                                RegisterResponse::parse_from_bytes(&down.payloadData).unwrap();
-                            Arc::get_mut(&mut request).unwrap().register(
-                                resp.instanceId,
-                                resp.sessKey,
-                                resp.sdkOption.lz4CompressionThresholdBytes,
-                            );
-
-                            writer
-                                .lock()
-                                .unwrap()
-                                .write(&request.keep_alive_request())
-                                .unwrap();
-                            writer
-                                .lock()
-                                .unwrap()
-                                .write(&request.enter_room_request())
-                                .unwrap();
-                        }
-                        r#enum::command::UNREGISTER => {
-                            break;
-                        }
-                        r#enum::command::KEEP_ALIVE => {}
-                        r#enum::command::PING => {}
-                        _ => {
-                            log::log!(log::Level::Warn, "Unhandled command: {:?}", down)
+                    }
+                    _ = heartbeat_interval.tick() => {
+                        write.write(&self.request.heartbeat_request()).await.unwrap();
+                        if self.request.get_seq_id() % 5 == 4 {
+                            write.write(&self.request.keep_alive_request()).await.unwrap();
                         }
                     }
                 }
-                drop(guard);
-            });
+            }
+        });
 
-            return tcp;
-        }
-        Err(e) => {
-            panic!("Failed to connect: {}", e);
-        }
+        // sender
+        notify
     }
 }

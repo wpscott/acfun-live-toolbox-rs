@@ -11,7 +11,7 @@ pub fn convert_key(token: &String) -> [u8; 32] {
 }
 
 fn encrypt(key: &[u8; 32], body: Vec<u8>) -> Vec<u8> {
-    let iv = Aes256CbcEnc::generate_iv( thread_rng());
+    let iv = Aes256CbcEnc::generate_iv(thread_rng());
 
     let mut encrypted = Aes256CbcEnc::new(key.into(), &iv).encrypt_padded_vec_mut::<Pkcs7>(&body);
 
@@ -23,11 +23,11 @@ fn encrypt(key: &[u8; 32], body: Vec<u8>) -> Vec<u8> {
 }
 
 fn decrypt(key: &[u8; 32], body: &[u8]) -> Vec<u8> {
-    let iv = &body[0..16];
+    let iv = &body[..16];
 
     Aes256CbcDec::new(key.into(), iv.into())
         .decrypt_padded_vec_mut::<Pkcs7>(&body[16..])
-        .unwrap()
+        .expect("danmaku decrypt error")
 }
 
 pub fn encode(mut header: Vec<u8>, body: Vec<u8>, key: &[u8; 32]) -> Vec<u8> {
@@ -57,28 +57,30 @@ pub fn decode(
     let header_len = u32::from_be_bytes(data[4..8].try_into().unwrap()) as usize;
     let payload_len = u32::from_be_bytes(data[8..12].try_into().unwrap()) as usize;
 
-    let header = PacketHeader::parse_from_bytes(&data[HEADER_OFFSET..header_len]).unwrap();
+    let header = PacketHeader::parse_from_bytes(&data[HEADER_OFFSET..header_len])
+        .expect("PacketHeader parse error");
 
     let payload = match header.encryptionMode.unwrap() {
         EncryptionMode::kEncryptionNone => {
             if payload_len != (header.decodedPayloadLen as usize) {
                 panic!("Invalid payload length")
             }
-            DownstreamPayload::parse_from_bytes(&data[HEADER_OFFSET + header_len..]).unwrap()
+            DownstreamPayload::parse_from_bytes(&data[HEADER_OFFSET + header_len..])
+                .expect("DownstreamPayload parse error")
         }
         EncryptionMode::kEncryptionServiceToken => {
             let decrypted = decrypt(&security_key, &data[HEADER_OFFSET + header_len..]);
             if decrypted.len() != (header.decodedPayloadLen as usize) {
                 panic!("Invalid payload length")
             }
-            DownstreamPayload::parse_from_bytes(&decrypted).unwrap()
+            DownstreamPayload::parse_from_bytes(&decrypted).expect("DownstreamPayload parse error")
         }
         EncryptionMode::kEncryptionSessionKey => {
             let decrypted = decrypt(&session_key, &data[HEADER_OFFSET + header_len..]);
             if decrypted.len() != (header.decodedPayloadLen as usize) {
                 panic!("Invalid payload length")
             }
-            DownstreamPayload::parse_from_bytes(&decrypted).unwrap()
+            DownstreamPayload::parse_from_bytes(&decrypted).expect("DownstreamPayload parse error")
         }
     };
 

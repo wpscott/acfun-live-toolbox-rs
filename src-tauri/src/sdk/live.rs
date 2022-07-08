@@ -151,9 +151,9 @@ fn sign(url: &str, token: &String, extra: Option<BTreeMap<&str, &str>>) -> (Stri
     (query, base64::encode_config(sign, base64::URL_SAFE_NO_PAD))
 }
 
-pub async fn get_author_auth(user: &User, token: &Token) -> Result<Auth, HyperError> {
+pub async fn get_author_auth(user: &User, token: &Token) -> Result<Auth, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let (query, sign) = sign(AUTHOR_AUTH, &token.ssecurity, None);
 
@@ -183,9 +183,9 @@ pub async fn get_author_auth(user: &User, token: &Token) -> Result<Auth, HyperEr
     Ok(result)
 }
 
-pub async fn get_stream_config(user: &User, token: &Token) -> Result<StreamConfig, HyperError> {
+pub async fn get_stream_config(user: &User, token: &Token) -> Result<StreamConfig, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let form = format!(
         "kpf=WINDOWS_PC&kpn=ACFUN_APP.LIVE_MATE&subBiz=mainApp&userId={}&acfun.midground.api_st={}",
@@ -217,9 +217,9 @@ pub async fn get_stream_config(user: &User, token: &Token) -> Result<StreamConfi
     Ok(result)
 }
 
-pub async fn get_stream_status(user: &User, token: &Token) -> Result<StreamStatus, HyperError> {
+pub async fn get_stream_status(user: &User, token: &Token) -> Result<StreamStatus, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let form = format!(
         "kpf=WINDOWS_PC&kpn=ACFUN_APP.LIVE_MATE&subBiz=mainApp&userId={}&acfun.midground.api_st={}",
@@ -251,9 +251,9 @@ pub async fn get_stream_status(user: &User, token: &Token) -> Result<StreamStatu
     Ok(result)
 }
 
-pub async fn start_push(user: &User, token: &Token) -> Result<StartPush, HyperError> {
+pub async fn start_push(user: &User, token: &Token) -> Result<StartPush, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let (query, sign) = sign(START_PUSH, &token.ssecurity, None);
 
@@ -282,9 +282,13 @@ pub async fn start_push(user: &User, token: &Token) -> Result<StartPush, HyperEr
     Ok(result)
 }
 
-pub async fn stop_push(user: &User, token: &Token, live_id: &str) -> Result<StopPush, HyperError> {
+pub async fn stop_push(
+    user: &User,
+    token: &Token,
+    live_id: &str,
+) -> Result<StopPush, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let (query, sign) = sign(
         STOP_PUSH,
@@ -410,9 +414,9 @@ pub enum Cdn {
     BlobStore,
 }
 
-pub async fn get_gift_list(user: &User, token: &Token) -> Result<Gift, HyperError> {
+pub async fn get_gift_list(user: &User, token: &Token) -> Result<Gift, NetworkError> {
     let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = HyperClient::builder().build::<_, hyper::Body>(https);
 
     let (query, sign) = sign(STOP_PUSH, &token.ssecurity, None);
 
